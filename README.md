@@ -31,7 +31,9 @@
 Sys.setenv(TCL_LIBRARY="/Library/Frameworks/R.framework/Resources/lib/tcl8.6")
 Sys.setenv(TK_LIBRARY="/Library/Frameworks/R.framework/Resources/lib/tk8.6")
 
-# Функція для перезапуску Rcmdr на Mac (коли вікно R Commander закрито через графічний інтерфейс, то щоб не перезаватажувати R то запускати нище наведену функцію в консолі командою(попередньо прописати саму функцію в консолі): restartRcmdr())
+# Функція для перезапуску Rcmdr на Mac 
+Коли вікно R Commander закрито через графічний інтерфейс, то щоб не перезаватажувати R то запускати нище наведену функцію в консолі командою(попередньо прописати саму функцію в консолі): restartRcmdr().
+
 restartRcmdr <- function() {
   if ("package:Rcmdr" %in% search()) detach("package:Rcmdr", unload=TRUE)
   if ("package:tcltk" %in% search()) detach("package:tcltk", unload=TRUE)
