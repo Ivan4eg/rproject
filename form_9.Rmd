@@ -1,0 +1,550 @@
+---
+title: "Цитотоксичність екстрактів"
+output: 
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float: true
+    self_contained: true
+---
+
+<style>
+h1.title {
+    text-align: center;
+    margin-bottom: 1em;
+}
+div.text-justify {
+    text-indent: 2em;
+    font-size: 12pt;
+    text-align: justify;
+    line-height: 1.3;
+    margin-bottom: 1em;
+}
+</style>
+
+```{r setup, include=FALSE}
+    library(plotly)
+    library(reactable)
+    library(dplyr)
+    library(tidyr)
+    library(highcharter)
+    library(DescTools)
+    library(purrr)
+    library(htmltools)
+```
+
+<div class="text-justify">
+    Вивчали вплив цитоксичної дії екстрактів на живі клітини. Контролем у дослідах слугували клітини кісткового мозку із додаванням 0,5 мл стандартного розчину. Час експозиції  15 хв. Дані представлені в таблиці.
+</div>
+
+
+
+```{r data, include=FALSE}
+    # Дані (NA — відсутні значення)
+    data <- data.frame(
+    id = 1:12,
+    extract0 = c(73.5, 90.8, 94.0, 88.3, 79.3, 90.4, 70.8, 71.9, 63.4, 62.8, 74.7, 72.4),
+    extract1 = c(85.7, 90.3, 81.9, 93.4, 92.3, 88.0, 81.0, 88.9, 93.4, 89.7, 85.2, NA),
+    extract2 = c(88.9, 77.7, 91.2, 109.2, 88.2, 91.8, 89.8, 75.3, 96.6, 98.6, NA, NA)
+    )
+```
+
+```{r reactable, echo=FALSE}
+    reactable(
+        data,
+        columns = list(
+            id = colDef(
+                name = "№ досліду", 
+                align = "center",
+                # Стиль заголовка (шапки)
+                headerStyle = list(background = "rgba(0, 0, 0, 0.1)", fontWeight = "bold"),
+                # Стиль комірок стовпчика
+                style = list(background = "rgba(0, 0, 0, 0.03)", fontWeight = "bold")
+            ),
+            extract0 = colDef(
+                name = "Екстракт 0", 
+                format = colFormat(digits = 1), 
+                align = "center",
+                headerStyle = list(background = "rgba(255, 99, 132, 0.2)"),
+                style = list(background = "rgba(255, 99, 132, 0.04)")
+            ),
+            extract1 = colDef(
+                name = "Екстракт 1", 
+                format = colFormat(digits = 1), 
+                align = "center",
+                headerStyle = list(background = "rgba(54, 162, 235, 0.2)"),
+                style = list(background = "rgba(54, 162, 235, 0.04)")
+            ),
+            extract2 = colDef(
+                name = "Екстракт 2", 
+                format = colFormat(digits = 1), 
+                align = "center",
+                headerStyle = list(background = "rgba(75, 192, 192, 0.2)"),
+                style = list(background = "rgba(75, 192, 192, 0.09)")
+            )
+        ),
+        bordered = TRUE,
+        highlight = TRUE,
+        striped = TRUE, 
+        defaultPageSize = nrow(data),
+        showPagination = FALSE,
+        theme = reactableTheme(
+            borderColor = "#dfe2e5",
+            # Колір горизонтальних смуг, що накладається зверху
+            rowStripedStyle = list(backgroundColor = "rgba(0, 0, 0, 0.04)") 
+        )
+    )
+```
+
+
+<div class="text-justify">
+    Мета: Порівняти цитоксичну дію запропонованих екстрактів.
+</div>
+
+# 1. Перевірка на нормальність
+
+<div class="text-justify">
+  При проведенні перевірки розподілу значень цитоксичної дії на нормальність використовувався критерій Шапіро-Уїлка.
+  Встановлено, що для Екстрактів №0, №1, №2 розподіли значень цитоксичної дії не відрізняються від нормального на рівні значущості p > 0,1.
+</div>
+
+<!-- print(shapiro.test(na.omit(data$extract0)))
+print(shapiro.test(na.omit(data$extract1)))
+print(shapiro.test(na.omit(data$extract2))) -->
+
+
+```{r qq_plots_flex_stats, echo=FALSE, results='asis'}
+
+qq_plot_final <- function(x, title_text, point_color, bg_color, n_val, w_val, p_val) {
+  x <- na.omit(x)
+  qq <- qqnorm(x, plot.it = FALSE)
+  
+  y_vals <- quantile(x, c(0.25, 0.75))
+  x_coords <- qnorm(c(0.25, 0.75))
+  slope <- diff(y_vals) / diff(x_coords)
+  intercept <- y_vals[1] - slope * x_coords[1]
+  
+  # Формуємо текст статистики
+  stats_text <- paste0(
+    "Shapiro-Wilk test:<br>",
+    "N = ", n_val, ", W = ", w_val, "<br>",
+    "p ", p_val
+  )
+  
+  plot_ly() %>%
+    add_trace(
+      x = qq$x, y = qq$y,
+      type = "scatter", mode = "markers",
+      marker = list(size = 8, color = point_color),
+      showlegend = FALSE
+    ) %>%
+    add_lines(
+      x = qq$x, y = intercept + slope * qq$x,
+      line = list(color = 'red', width = 2),
+      showlegend = FALSE
+    ) %>%
+    layout(
+      title = list(text = paste0("<b>", title_text, "</b>"), font = list(size = 16), y = 0.98),
+      plot_bgcolor = bg_color,
+      
+      # Додаємо анотацію зі статистикою в правому нижньому куті
+      annotations = list(
+        list(
+          text = stats_text,
+          xref = "paper", yref = "paper",
+          x = 0.95, y = 0.05,
+          showarrow = FALSE,
+          align = "right",
+          font = list(size = 11, color = "#444"),
+          bgcolor = "rgba(255, 255, 255, 0.5)" # Напівпрозора плашка під текстом
+        )
+      ),
+      
+      xaxis = list(title = "Теор. квантилі", gridcolor = 'white', zeroline = FALSE),
+      yaxis = list(title = "Значення", gridcolor = 'white', zeroline = FALSE),
+      margin = list(t = 50, b = 40, l = 40, r = 10)
+    )
+}
+
+# 2. Створюємо графіки з даними p > 0.1
+p0 <- qq_plot_final(data$extract0, "Екстракт №0", 
+                    'rgba(255, 99, 132, 0.9)', 'rgba(255, 99, 132, 0.08)',
+                    n_val = 12, w_val = 0.909, p_val = "> 0.1")
+
+p1 <- qq_plot_final(data$extract1, "Екстракт №1", 
+                    'rgba(54, 162, 235, 0.9)', 'rgba(54, 162, 235, 0.08)',
+                    n_val = 11, w_val = 0.934, p_val = "> 0.1")
+
+p2 <- qq_plot_final(data$extract2, "Екстракт №2", 
+                    'rgba(75, 192, 192, 0.9)', 'rgba(75, 192, 192, 0.08)',
+                    n_val = 10, w_val = 0.951, p_val = "> 0.1")
+
+# 3. Вивід
+div(
+  style = "display: flex; flex-wrap: nowrap; justify-content: space-between; width: 100%;",
+  div(style = "width: 33%;", p0),
+  div(style = "width: 33%;", p1),
+  div(style = "width: 33%;", p2)
+)
+
+```
+
+
+```{r bar_chart_fixed, echo=FALSE, message=FALSE, warning=FALSE}
+# 1. Повний розрахунок статистики всередині чанку
+summary_stats <- data %>%
+  pivot_longer(everything(), names_to = "Extract", values_to = "Value") %>%
+  filter(!is.na(Value)) %>%
+  group_by(Extract) %>%
+  summarise(
+    mean = mean(Value),
+    sd = sd(Value),
+    n = n(),
+    se = sd / sqrt(n)
+  ) %>%
+  mutate(
+    low = mean - se,  # нижня межа інтервалу
+    high = mean + se, # верхня межа інтервалу
+    color <- c("#aeaeae", "#FF6384", "#36A2EB", "#4BC0C0") # яскраві кольори
+  )
+```
+
+
+```{r boxplot, echo=FALSE, fig.align='center'}
+
+# 1. Підготовка даних
+make_box <- function(x) {
+  x <- na.omit(x)
+  stats <- unname(c(
+    min(x), quantile(x, 0.25), median(x), quantile(x, 0.75), max(x)
+  ))
+  return(stats)
+}
+
+# Визначаємо кольори
+colors_hex <- c("#FF6384", "#36A2EB", "#4BC0C0")
+colors_rgba <- c('rgba(255, 99, 132, 0.3)', 'rgba(54, 162, 235, 0.3)', "rgba(75, 192, 192, 0.3)")
+
+# Формуємо дані як список об'єктів
+box_data_final <- map(1:3, function(i) {
+  list(
+    low = make_box(data[[paste0("extract", i-1)]])[1],
+    q1  = make_box(data[[paste0("extract", i-1)]])[2],
+    median = make_box(data[[paste0("extract", i-1)]])[3],
+    q3  = make_box(data[[paste0("extract", i-1)]])[4],
+    high = make_box(data[[paste0("extract", i-1)]])[5],
+    color = colors_hex[i],       # Колір ліній
+    fillColor = colors_rgba[i]   # Колір заливки з прозорістю
+  )
+})
+
+# 2. Побудова графіка
+htmltools::div(
+    style = "display: flex; justify-content: center;",
+    highchart() %>%
+    hc_chart(inverted = FALSE) %>% 
+    hc_title(text = "Варіативність цитотоксичної дії") %>%
+    hc_xAxis(
+        categories = c("Екстракт 0", "Екстракт 1", "Екстракт 2"),
+        title = list(text = "Тип екстракту")
+    ) %>%
+    hc_yAxis(
+        title = list(text = "Цитотоксичність, %"),
+        min = 60, max = 120,
+        plotLines = list(list(value = 100, color = "#cccccc", width = 1, dashStyle = "Dash"))
+    ) %>%
+    hc_add_series(
+        name = "Розподіл",
+        type = "boxplot",
+        data = box_data_final,
+        lineWidth = 1.5,
+        medianWidth = 2,
+        medianColor = NULL, # Щоб медіана брала колір ліній 'color', а не заливки
+        whiskerLength = "50%",
+        stemWidth = 1
+    ) %>%
+    hc_tooltip(
+        pointFormat = "Макс: {point.high}%<br>Кв3: {point.q3}%<br><b>Медіана: {point.median}%</b><br>Кв1: {point.q1}%<br>Мін: {point.low}%"
+    )
+)
+```
+
+
+
+# 2. Точкова оцінка
+
+<div class="text-justify">
+Для подання точкової оцінки значень цитоксичної дії використано середнє значення та стандартне відхилення.  
+</div>
+
+```{r summary_stats, echo=FALSE}
+summary_data <- data %>%
+  summarise(
+    Mean0 = mean(extract0, na.rm = TRUE),
+    SD0 = sd(extract0, na.rm = TRUE),
+    N0 = sum(!is.na(extract0)),
+    Mean1 = mean(extract1, na.rm = TRUE),
+    SD1 = sd(extract1, na.rm = TRUE),
+    N1 = sum(!is.na(extract1)),
+    Mean2 = mean(extract2, na.rm = TRUE),
+    SD2 = sd(extract2, na.rm = TRUE),
+    N2 = sum(!is.na(extract2))
+  )
+
+# summary_data
+```
+
+<div class="text-justify" style="text-align: left;">
+Таблиця. Точкова оцінка середнього значення цитотоксичної дії Екстрактів №0, №1, №2 (M ± SD)
+</div>
+
+```{r table_summary, echo=FALSE}
+
+# 1. Формуємо дані для таблиці на основі summary_data
+table_data <- data.frame(
+  parameter = "Цитотоксична дія, %",
+  ext0 = paste0(round(summary_data$Mean0, 2), " ± ", round(summary_data$SD0, 2), " <sup>2,3</sup>"),
+  ext1 = paste0(round(summary_data$Mean1, 2), " ± ", round(summary_data$SD1, 2), " <sup>1</sup>"),
+  ext2 = paste0(round(summary_data$Mean2, 2), " ± ", round(summary_data$SD2, 2), " <sup>1</sup>"),
+  p_val = "0.003"
+)
+
+# 2. Побудова таблиці reactable
+reactable(
+  table_data,
+  pagination = FALSE,
+  bordered = TRUE,
+  highlight = TRUE,
+  theme = reactableTheme(
+    borderColor = "#dfe2e5"
+  ),
+  columns = list(
+    parameter = colDef(
+      name = "Показник",
+      minWidth = 150,
+      style = list(fontWeight = "bold", background = "rgba(0, 0, 0, 0.03)")
+    ),
+    ext0 = colDef(
+      name = paste0("Екстракт №0 (n=", summary_data$N0, ")"),
+      html = TRUE, align = "center",
+      headerStyle = list(background = "rgba(255, 99, 132, 0.2)", fontWeight = "bold"),
+      style = list(background = "rgba(255, 99, 132, 0.04)")
+    ),
+    ext1 = colDef(
+      name = paste0("Екстракт №1 (n=", summary_data$N1, ")"),
+      html = TRUE, align = "center",
+      headerStyle = list(background = "rgba(54, 162, 235, 0.2)", fontWeight = "bold"),
+      style = list(background = "rgba(54, 162, 235, 0.04)")
+    ),
+    ext2 = colDef(
+      name = paste0("Екстракт №2 (n=", summary_data$N2, ")"),
+      html = TRUE, align = "center",
+      headerStyle = list(background = "rgba(75, 192, 192, 0.2)", fontWeight = "bold"),
+      style = list(background = "rgba(75, 192, 192, 0.09)")
+    ),
+    p_val = colDef(
+      name = "Рівень значущості p",
+      align = "center",
+      headerStyle = list(background = "rgba(0, 0, 0, 0.1)", fontWeight = "bold"),
+      style = list(fontWeight = "bold")
+    )
+  )
+)
+```
+
+<div style="font-size: 0.85em;color: #555;">
+<sup>1</sup> – відмінність від Екстракту №0 статистично значуща;<br>
+<sup>2</sup> – відмінність від Екстракту №1 статистично значуща;<br>
+<sup>3</sup> – відмінність від Екстракту №2 статистично значуща.<br>
+<strong>Примітки:</strong> вказано середнє значення та стандартне відхилення ($M \pm SD$). Для порівняння використано дисперсійний аналіз (ANOVA), постеріорні порівняння проведено за критерієм Шеффе.
+</div>
+
+# 3. Інтервальна оцінка
+
+```{r mean_error_plot_final, echo=FALSE, fig.align='center'}
+
+# 1. Функція розрахунку для побудови графіка
+calculate_plot_stats <- function(mean_val, sd_val, n_val) {
+  sem <- sd_val / sqrt(n_val)
+  t_critical <- qt(0.975, df = n_val - 1)
+  ci_margin <- t_critical * sem
+  
+  list(
+    mean = mean_val,
+    sem_low = mean_val - sem,
+    sem_high = mean_val + sem,
+    ci_low = mean_val - ci_margin,
+    ci_high = mean_val + ci_margin
+  )
+}
+
+# Підготовка даних на основі summary_data
+stats_list <- list(
+  calculate_plot_stats(summary_data$Mean0, summary_data$SD0, summary_data$N0),
+  calculate_plot_stats(summary_data$Mean1, summary_data$SD1, summary_data$N1),
+  calculate_plot_stats(summary_data$Mean2, summary_data$SD2, summary_data$N2)
+)
+
+# Формування назв категорій з n 
+categories_with_n <- c(
+  paste0("Екстракт 0<br>(n=", summary_data$N0, ")"),
+  paste0("Екстракт 1<br>(n=", summary_data$N1, ")"),
+  paste0("Екстракт 2<br>(n=", summary_data$N2, ")")
+)
+
+colors_hex <- c("#FF6384", "#36A2EB", "#4BC0C0")
+colors_rgba <- c('rgba(255, 99, 132, 0.3)', 'rgba(54, 162, 235, 0.3)', "rgba(75, 192, 192, 0.3)")
+
+plot_data_final <- map(1:3, function(i) {
+  s <- stats_list[[i]]
+  list(
+    low = s$ci_low, 
+    q1  = s$sem_low, 
+    median = s$mean, 
+    q3  = s$sem_high, 
+    high = s$ci_high,
+    color = colors_hex[i],
+    fillColor = colors_rgba[i]
+  )
+})
+
+# 2. Побудова графіка
+htmltools::div(
+  style = "display: flex; justify-content: center;",
+  highchart() %>%
+    hc_chart(type = "boxplot") %>%
+    hc_title(text = "Інтервальна оцінка значення цитотоксичної дії Екстрактів") %>%
+    hc_subtitle(text = "Центральна лінія — Mean, коробка — ±SEM, вуса — 95% CI") %>%
+    hc_xAxis(
+      categories = categories_with_n,
+      title = list(text = "Досліджувані групи")
+    ) %>%
+    hc_yAxis(
+      title = list(text = "Цитотоксичність, %"),
+      min = 60,
+      plotLines = list(list(
+        value = 100, color = "#e74c3c", width = 2, dashStyle = "ShortDash",
+        label = list(text = "Контроль (100%)", align = "right", style = list(color = "#e74c3c"))
+      ))
+    ) %>%
+    hc_add_series(
+      name = "Показники",
+      data = plot_data_final,
+      lineWidth = 2,
+      medianWidth = 3,
+      whiskerLength = "40%",
+      stemWidth = 1.5
+    ) %>%
+    hc_tooltip(
+      valueDecimals = 2,
+      pointFormat = "<b>{point.category}</b><br>
+                     95% CI (верх): {point.high}%<br>
+                     M + SEM: {point.q3}%<br>
+                     <b>Середнє (M): {point.median}%</b><br>
+                     M - SEM: {point.q1}%<br>
+                     95% CI (ниж): {point.low}%"
+    )
+)
+```
+
+# 4. Дисперсійний аналіз (ANOVA)
+
+<div class="text-justify">
+Розподіл значень цитотоксичної дії Екстрактів №0, №1, №2 не відрізняється від нормального (p > 0.1), тому використано параметричні критерії — однофакторний дисперсійний аналіз (ANOVA) для порівняння трьох груп.
+</div>
+
+```{r anova, echo=FALSE}
+# Перетворимо дані в довгий формат для ANOVA
+long_data <- data %>%
+  tidyr::pivot_longer(everything(), names_to = "Extract", values_to = "Value") %>%
+  filter(!is.na(Value))
+
+anova_res <- aov(Value ~ Extract, data = long_data)
+# summary(anova_res)
+
+# Пост-хок порівняння Scheffe
+library(DescTools)
+# ScheffeTest(anova_res)
+```
+
+```{r anova_final, echo=FALSE}
+library(broom)
+library(reactable)
+library(dplyr)
+library(tidyr)
+
+# Підготовка даних
+long_data <- data %>%
+  pivot_longer(cols = -id, names_to = "Extract", values_to = "Value") %>%
+  filter(!is.na(Value))
+
+anova_res <- aov(Value ~ Extract, data = long_data)
+anova_tidy <- tidy(anova_res)
+
+reactable(
+  anova_tidy,
+  columns = list(
+    term = colDef(name = "Джерело варіації",
+                  cell = function(value) {
+                    if (value == "Extract") "Між групами (k1=2)"
+                    else "Внутрішньогрупова (k2=30)"
+                  }),
+    df = colDef(name = "df", align = "center"),
+    sumsq = colDef(name = "Сума квадратів", format = colFormat(digits = 2)),
+    meansq = colDef(name = "Середній квадрат", format = colFormat(digits = 2)),
+    statistic = colDef(name = "F-критерій", format = colFormat(digits = 2)),
+    p.value = colDef(name = "p-значення", format = colFormat(digits = 3),
+                     style = list(fontWeight = "bold", color = "#e74c3c"))
+  ),
+  bordered = TRUE, theme = reactableTheme(borderColor = "#dfe2e5")
+)
+```
+
+# 5. Пост-хок порівняння Шеффе
+<div class="text-justify">
+Оскільки отримане значення $p < 0.05$, було проведено постеріорні порівняння за критерієм Шеффе для виявлення конкретних відмінностей між парами екстрактів.
+</div>
+
+```{r scheffe_res, echo=FALSE}
+library(DescTools)
+scheffe_res <- ScheffeTest(anova_res)
+scheffe_df <- as.data.frame(scheffe_res$Extract)
+scheffe_df$Comparison <- rownames(scheffe_df)
+
+scheffe_df$Comparison <- gsub("extract0", "Екстракт №0", scheffe_df$Comparison)
+scheffe_df$Comparison <- gsub("extract1", "Екстракт №1", scheffe_df$Comparison)
+scheffe_df$Comparison <- gsub("extract2", "Екстракт №2", scheffe_df$Comparison)
+scheffe_df$Comparison <- gsub("-", " vs ", scheffe_df$Comparison)
+
+reactable(
+  scheffe_df[, c("Comparison", "diff", "pval")],
+  rownames = FALSE,
+  columns = list(
+    Comparison = colDef(name = "Порівняння змінних", minWidth = 200),
+    diff = colDef(name = "Різниця середніх", format = colFormat(digits = 2), align = "center"),
+    pval = colDef(
+      name = "Результат (p)",
+      align = "center",
+      cell = function(value) {
+        sig <- if (value < 0.05) "Статистично значущо" else "Незначущо"
+        paste0(round(value, 3), " (", sig, ")")
+      },
+      style = function(value) {
+        color <- if (value < 0.05) "#e74c3c" else "#2ecc71"
+        list(color = color, fontWeight = "bold")
+      }
+    )
+  ),
+  bordered = TRUE, highlight = TRUE
+)
+```
+
+# 6. Висновок
+
+<div class="text-justify">
+Виявлено цитотоксичний вплив на живі клітини (p = 0.003 за дисперсійним аналізом ANOVA).  
+</div>
+<div class="text-justify"> 
+Екстракти №1 та №2 дають статистично значущі цитотоксичні впливи на живі клітини порівняно з Екстрактом №0, між Екстрактом №1 та №2 статистично значущої відмінності не виявлено (p = 0.80).
+</div>
